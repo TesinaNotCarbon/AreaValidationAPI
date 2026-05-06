@@ -1,0 +1,21 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    image: area-validation-api:local
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Ensure `.env` is available on disk for pydantic-settings `env_file=".env"`
+      - ./.env:/app/.env:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    init: true

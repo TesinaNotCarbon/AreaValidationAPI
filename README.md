@@ -65,7 +65,82 @@ Blockchain read uses bounded retries with exponential backoff.
 The synchronous web3 call is offloaded via asyncio.to_thread to avoid blocking the event loop.
 The response is validated against a max approved CID threshold for API safety.
 
+## Configuration
+
+Environment variables are defined in .env.example.
+Key values:
+
+- ETH_RPC_URL: RPC endpoint for the target EVM network.
+- PROJECT_MANAGER_ADDRESS: deployed ProjectManager contract address.
+- PROJECT_MANAGER_ABI: JSON ABI string including getApprovedCellIds.
+- PINATA_GATEWAY_BASE_URL and PINATA_JWT: authenticated IPFS gateway access.
+- RPC and IPFS timeout values plus max concurrent downloads.
+
+## Run Locally
+
+1. Create and activate a Python virtual environment.
+2. Install dependencies.
+3. Copy .env.example to .env and set real values.
+4. Start the API with uvicorn.
+
+Example:
+
+```bash
+python -m pip install -e .[dev]
+cp .env.example .env
+uvicorn app.main:app --reload
+```
+
+## Run with Docker Compose
+
+1. Copy `.env.example` to `.env` and set real values (at minimum `ETH_RPC_URL`, `PROJECT_MANAGER_ADDRESS`, `PROJECT_MANAGER_ABI`, `PINATA_JWT`).
+2. Build and start the API.
+3. Verify `/health`.
+
+Example:
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Verify:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
+Notes:
+
+- `docker-compose.yml` injects env vars via `env_file: .env` and also mounts the `.env` file into the container (`/app/.env`) to match `pydantic-settings` `env_file=".env"` behavior.
+- The container listens on `0.0.0.0:8000` and is exposed to your host as `localhost:8000`.
+
+## Limitations and Current Scope
+
+- FeatureCollection inputs are normalized to the first feature.
+- No external cache is used; every request performs fresh RPC and IPFS reads.
+- intersects treats boundary-touch as a conflict.
+- The service currently focuses on read/validation; on-chain write-back is out of scope.
+
+## Testing
+
+Run tests with:
+
+```bash
+python -m pytest -q
+```
+
 ## API Endpoints
+
+FastAPI exposes interactive API documentation at:
+- `/docs` (Swagger UI)
+- `/redoc` (ReDoc)
 
 ### POST /validate-polygon
 
@@ -110,45 +185,4 @@ Response body:
 		"max_concurrent_downloads": 25
 	}
 }
-```
-
-## Configuration
-
-Environment variables are defined in .env.example.
-Key values:
-
-- ETH_RPC_URL: RPC endpoint for the target EVM network.
-- PROJECT_MANAGER_ADDRESS: deployed ProjectManager contract address.
-- PROJECT_MANAGER_ABI: JSON ABI string including getApprovedCellIds.
-- PINATA_GATEWAY_BASE_URL and PINATA_JWT: authenticated IPFS gateway access.
-- RPC and IPFS timeout values plus max concurrent downloads.
-
-## Run Locally
-
-1. Create and activate a Python virtual environment.
-2. Install dependencies.
-3. Copy .env.example to .env and set real values.
-4. Start the API with uvicorn.
-
-Example:
-
-```bash
-python -m pip install -e .[dev]
-cp .env.example .env
-uvicorn app.main:app --reload
-```
-
-## Limitations and Current Scope
-
-- FeatureCollection inputs are normalized to the first feature.
-- No external cache is used; every request performs fresh RPC and IPFS reads.
-- intersects treats boundary-touch as a conflict.
-- The service currently focuses on read/validation; on-chain write-back is out of scope.
-
-## Testing
-
-Run tests with:
-
-```bash
-python -m pytest -q
 ```
