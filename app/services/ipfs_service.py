@@ -72,12 +72,14 @@ class IPFSService:
                             )
                         return await response.json()
 
-                    if response.status == 429 and attempt < 2:
-                        # Respect Retry-After when present, otherwise use a small fallback delay.
-                        retry_after = response.headers.get("Retry-After")
-                        sleep_seconds = float(retry_after) if retry_after and retry_after.isdigit() else 1.0
-                        await asyncio.sleep(max(0.5, sleep_seconds))
-                        continue
+                    if response.status == 429:
+                        if attempt < 2:
+                            # Respect Retry-After when present, otherwise use a small fallback delay.
+                            retry_after = response.headers.get("Retry-After")
+                            sleep_seconds = float(retry_after) if retry_after and retry_after.isdigit() else 1.0
+                            await asyncio.sleep(max(0.5, sleep_seconds))
+                            continue
+                        break
 
                     text = await response.text()
                     raise IPFSDownloadError(

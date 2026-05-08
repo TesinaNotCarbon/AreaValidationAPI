@@ -136,6 +136,12 @@ Run tests with:
 python -m pytest -q
 ```
 
+Run tests with coverage:
+
+```bash
+python -m pytest --cov=app --cov-report=term-missing
+```
+
 ## API Endpoints
 
 FastAPI exposes interactive API documentation at:

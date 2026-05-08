@@ -32,9 +32,13 @@ class FakeResponse:
 class FakeSession:
     def __init__(self, responses: list[FakeResponse]):
         self._responses = iter(responses)
+        self.closed = False
 
     def get(self, url: str) -> FakeResponse:
         return next(self._responses)
+
+    async def close(self) -> None:
+        self.closed = True
 
 
 def _build_settings() -> Settings:
@@ -95,6 +99,30 @@ async def test_download_geojson_batch_returns_map():
 
 
 @pytest.mark.anyio
+async def test_startup_initializes_session_with_auth_header():
+    service = IPFSService(settings=_build_settings())
+
+    await service.startup()
+
+    assert service._session is not None
+    assert service._session.headers.get("Authorization") == "Bearer test-jwt"
+
+    await service.shutdown()
+
+
+@pytest.mark.anyio
+async def test_shutdown_closes_session():
+    service = IPFSService(settings=_build_settings())
+    fake_session = FakeSession([])
+    service._session = fake_session
+
+    await service.shutdown()
+
+    assert fake_session.closed is True
+    assert service._session is None
+
+
+@pytest.mark.anyio
 async def test_download_geojson_success_json():
     service = IPFSService(settings=_build_settings())
     service._session = FakeSession(
@@ -151,4 +179,34 @@ async def test_download_geojson_raises_on_error_status():
     )
 
     with pytest.raises(IPFSDownloadError, match="Failed to fetch CID"):
+        await service._download_geojson("cid-1")
+
+
+@pytest.mark.anyio
+async def test_download_geojson_batch_reports_failed_cids():
+    service = IPFSService(settings=_build_settings())
+
+    async def fake_download(cell_id: str) -> dict:
+        if cell_id == "bad":
+            raise IPFSDownloadError("boom")
+        return {"ok": True}
+
+    service._download_geojson = fake_download  # type: ignore[assignment]
+
+    with pytest.raises(IPFSDownloadError, match="\['bad'\]"):
+        await service.download_geojson_batch(["ok", "bad"])
+
+
+@pytest.mark.anyio
+async def test_download_geojson_exceeded_retries():
+    service = IPFSService(settings=_build_settings())
+    service._session = FakeSession(
+        [
+            FakeResponse(status=429, headers={}, text_data="rate limit"),
+            FakeResponse(status=429, headers={}, text_data="rate limit"),
+            FakeResponse(status=429, headers={}, text_data="rate limit"),
+        ]
+    )
+
+    with pytest.raises(IPFSDownloadError, match="Exceeded retries"):
         await service._download_geojson("cid-1")
